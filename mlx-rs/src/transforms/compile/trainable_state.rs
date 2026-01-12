@@ -115,6 +115,15 @@ where
         &mut self.optimizer
     }
 
+    /// Get mutable references to both model and optimizer.
+    ///
+    /// This is useful when you need to borrow both at the same time,
+    /// which the borrow checker won't allow with separate `model_mut()`
+    /// and `optimizer_mut()` calls.
+    pub fn as_parts_mut(&mut self) -> (&mut M, &mut O) {
+        (&mut self.model, &mut self.optimizer)
+    }
+
     /// Get the number of trainable parameters.
     pub fn num_trainable_params(&self) -> usize {
         self.trainable_keys.len()
