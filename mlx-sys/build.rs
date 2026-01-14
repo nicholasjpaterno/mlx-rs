@@ -8,6 +8,13 @@ fn build_and_link_mlx_c() {
     config.very_verbose(true);
     config.define("CMAKE_INSTALL_PREFIX", ".");
 
+    // Set macOS deployment target to 14.0 for full Metal/MLX feature support
+    // This avoids linking errors with ___isPlatformVersionAtLeast
+    #[cfg(target_os = "macos")]
+    {
+        config.define("CMAKE_OSX_DEPLOYMENT_TARGET", "14.0");
+    }
+
     #[cfg(debug_assertions)]
     {
         config.define("CMAKE_BUILD_TYPE", "Debug");
