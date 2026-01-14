@@ -102,7 +102,14 @@ fn build_quantized_embedding_inner(
     group_size: i32,
     bits: i32,
 ) -> Result<QuantizedEmbedding, Exception> {
-    let (quantized_weight, scales, biases) = ops::quantize(&weight, group_size, bits)?;
+    let mut result = ops::quantize(&weight, group_size, bits, None)?.into_iter();
+    let quantized_weight = result.next().ok_or_else(|| {
+        Exception::from("quantize returned empty result")
+    })?;
+    let scales = result.next().ok_or_else(|| {
+        Exception::from("quantize returned no scales")
+    })?;
+    let biases = result.next().unwrap_or_else(|| Array::zeros::<f32>(&[1]).unwrap());
 
     let inner = Embedding {
         weight: Param::new(quantized_weight),
@@ -168,10 +175,11 @@ impl QuantizedEmbedding {
             x.as_ref(),
             &self.inner.weight,
             &self.scales,
-            &self.biases,
+            Some(&self.biases),
             true,
             self.group_size,
             self.bits,
+            None,
         )
     }
 }
@@ -195,7 +203,7 @@ impl Module<&Array> for QuantizedEmbedding {
         let scales = self.scales.index(&x);
         let biases = self.biases.index(&x);
 
-        let out = dequantize(&w, &scales, &biases, self.group_size, self.bits)?;
+        let out = dequantize(&w, &scales, Some(&biases), self.group_size, self.bits, None, None)?;
 
         let ret_shape = s.iter().copied().chain(once(-1)).collect::<Vec<_>>();
         out.reshape(&ret_shape)
@@ -254,7 +262,14 @@ fn build_quantized_linear_inner(
     group_size: i32,
     bits: i32,
 ) -> Result<QuantizedLinear, Exception> {
-    let (quantized_weight, scales, biases) = ops::quantize(&weight, group_size, bits)?;
+    let mut result = ops::quantize(&weight, group_size, bits, None)?.into_iter();
+    let quantized_weight = result.next().ok_or_else(|| {
+        Exception::from("quantize returned empty result")
+    })?;
+    let scales = result.next().ok_or_else(|| {
+        Exception::from("quantize returned no scales")
+    })?;
+    let biases = result.next().unwrap_or_else(|| Array::zeros::<f32>(&[1]).unwrap());
 
     let inner = Linear {
         weight: Param::new(quantized_weight),
@@ -366,10 +381,11 @@ impl Module<&Array> for QuantizedLinear {
             x,
             &self.inner.weight,
             &self.scales,
-            &self.biases,
+            Some(&self.biases),
             true,
             self.group_size,
             self.bits,
+            None,
         )?;
         if let Some(bias) = &self.inner.bias.value {
             x = x.add(bias)?;
