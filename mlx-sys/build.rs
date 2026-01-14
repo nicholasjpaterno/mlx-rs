@@ -71,6 +71,27 @@ fn build_and_link_mlx_c() {
     {
         let deployment_target = env::var("MACOSX_DEPLOYMENT_TARGET").unwrap_or_else(|_| "14.0".to_string());
         println!("cargo:rustc-link-arg=-mmacosx-version-min={}", deployment_target);
+
+        // Link against clang_rt.osx for ___isPlatformVersionAtLeast symbol
+        // Rust uses -nodefaultlibs which prevents clang from adding this automatically
+        // See: https://github.com/rust-lang/rust/issues/109717
+        let clang_rt_paths = [
+            "/Library/Developer/CommandLineTools/usr/lib/clang/17/lib/darwin",
+            "/Library/Developer/CommandLineTools/usr/lib/clang/16/lib/darwin",
+            "/Library/Developer/CommandLineTools/usr/lib/clang/15/lib/darwin",
+            "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/lib/darwin",
+            "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/16/lib/darwin",
+            "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/15/lib/darwin",
+        ];
+
+        for path in clang_rt_paths {
+            let lib_path = std::path::Path::new(path).join("libclang_rt.osx.a");
+            if lib_path.exists() {
+                println!("cargo:rustc-link-search=native={}", path);
+                println!("cargo:rustc-link-lib=static=clang_rt.osx");
+                break;
+            }
+        }
     }
 }
 
