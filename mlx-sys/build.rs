@@ -44,8 +44,85 @@ fn find_clang_rt_path() -> Option<String> {
     None
 }
 
+/// Resolve the macOS deployment target.
+///
+/// Uses `MACOSX_DEPLOYMENT_TARGET` env var if set, otherwise defaults to 14.0
+/// (MLX's minimum supported version for Metal).
+#[cfg(target_os = "macos")]
+fn resolve_deployment_target() -> String {
+    env::var("MACOSX_DEPLOYMENT_TARGET").unwrap_or_else(|_| "14.0".to_string())
+}
+
+/// Copy src/mlx-c to a staging directory and inject the metallib search-path
+/// patch into the CMakeLists.txt. This avoids modifying the mlx-c git submodule
+/// while ensuring the patch is applied when MLX is fetched via FetchContent.
+fn prepare_mlx_c_source() -> PathBuf {
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let staged = out_dir.join("mlx-c-staged");
+    let src = PathBuf::from("src/mlx-c");
+
+    // Copy the entire mlx-c source tree to the staging area
+    if staged.exists() {
+        std::fs::remove_dir_all(&staged).expect("Failed to clean staged mlx-c");
+    }
+    copy_dir_recursive(&src, &staged).expect("Failed to copy mlx-c to staging");
+
+    // Copy our patch file into the staged source
+    let patches_dir = staged.join("patches");
+    std::fs::create_dir_all(&patches_dir).expect("Failed to create patches dir");
+    std::fs::copy(
+        "patches/metallib-search-path.patch",
+        patches_dir.join("metallib-search-path.patch"),
+    )
+    .expect("Failed to copy metallib patch");
+
+    // Inject PATCH_COMMAND into the FetchContent_Declare for MLX
+    let cmake_path = staged.join("CMakeLists.txt");
+    let cmake_content =
+        std::fs::read_to_string(&cmake_path).expect("Failed to read CMakeLists.txt");
+    let patched = cmake_content.replace(
+        "GIT_TAG v0.30.6)",
+        "GIT_TAG v0.30.6\n    PATCH_COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/patches/metallib-search-path.patch || true)",
+    );
+    std::fs::write(&cmake_path, patched).expect("Failed to write patched CMakeLists.txt");
+
+    // Tell cargo to rerun if the patch changes
+    println!("cargo:rerun-if-changed=patches/metallib-search-path.patch");
+
+    staged
+}
+
+fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let dest_path = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_recursive(&entry.path(), &dest_path)?;
+        } else if ty.is_symlink() {
+            // Resolve symlinks (common in git submodules)
+            let target = std::fs::read_link(entry.path())?;
+            let resolved = if target.is_absolute() {
+                target
+            } else {
+                entry.path().parent().unwrap().join(&target)
+            };
+            if resolved.is_dir() {
+                copy_dir_recursive(&resolved, &dest_path)?;
+            } else {
+                std::fs::copy(&resolved, &dest_path)?;
+            }
+        } else {
+            std::fs::copy(entry.path(), &dest_path)?;
+        }
+    }
+    Ok(())
+}
+
 fn build_and_link_mlx_c() {
-    let mut config = Config::new("src/mlx-c");
+    let mlx_c_src = prepare_mlx_c_source();
+    let mut config = Config::new(&mlx_c_src);
     config.very_verbose(true);
     config.define("CMAKE_INSTALL_PREFIX", ".");
 
@@ -103,6 +180,47 @@ fn build_and_link_mlx_c() {
     if let Some(clang_rt_path) = find_clang_rt_path() {
         println!("cargo:rustc-link-search={}", clang_rt_path);
         println!("cargo:rustc-link-lib=static=clang_rt.osx");
+    }
+
+    // Cache mlx.metallib to ~/.cache/pmetal/lib/ so the binary works regardless
+    // of where it's installed. This is critical for `cargo install` where the
+    // build directory is cleaned up after the binary is placed.
+    #[cfg(feature = "metal")]
+    {
+        let metallib = dst.join("build/lib/mlx.metallib");
+        if metallib.exists() {
+            if let Ok(home) = env::var("HOME") {
+                let cache_dir = PathBuf::from(home).join(".cache/pmetal/lib");
+                let dest = cache_dir.join("mlx.metallib");
+                let should_copy = if dest.exists() {
+                    // Replace if the build artifact is newer
+                    dest.metadata()
+                        .and_then(|d| {
+                            metallib.metadata().map(|s| {
+                                s.modified().ok().zip(d.modified().ok()).is_some_and(
+                                    |(src_t, dst_t)| src_t > dst_t,
+                                )
+                            })
+                        })
+                        .unwrap_or(false)
+                } else {
+                    true
+                };
+                if should_copy {
+                    let _ = std::fs::create_dir_all(&cache_dir);
+                    match std::fs::copy(&metallib, &dest) {
+                        Ok(_) => println!(
+                            "cargo:warning=Cached mlx.metallib to {}",
+                            dest.display()
+                        ),
+                        Err(e) => println!(
+                            "cargo:warning=Failed to cache mlx.metallib: {}",
+                            e
+                        ),
+                    }
+                }
+            }
+        }
     }
 }
 

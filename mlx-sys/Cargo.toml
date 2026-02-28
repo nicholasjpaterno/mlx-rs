@@ -1,11 +1,11 @@
 [package]
-name = "mlx-sys"
-version = "0.2.0" # mlx-sys version should follow that of mlx-c
+name = "pmetal-mlx-sys"
+version = "0.2.2" # mlx-sys version should follow that of mlx-c
 authors.workspace = true
 edition.workspace = true
 
-description = "Low-level interface and binding generation for the mlx library"
-repository.workspace = true
+description = "pmetal-maintained fork of mlx-sys: low-level interface and binding generation for the mlx library"
+repository = "https://github.com/oxiglade/mlx-rs"
 keywords.workspace = true
 categories.workspace = true
 license.workspace = true

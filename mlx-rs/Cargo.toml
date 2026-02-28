@@ -1,14 +1,14 @@
 [package]
-name = "mlx-rs"
-version.workspace = true
+name = "pmetal-mlx-rs"
+version = "0.25.5"
 authors.workspace = true
 edition.workspace = true
-repository.workspace = true
+repository = "https://github.com/oxiglade/mlx-rs"
 keywords.workspace = true
 categories.workspace = true
 license.workspace = true
 documentation.workspace = true
-description = "Unofficial rust wrapper for Apple's mlx machine learning library."
+description = "pmetal-maintained fork of mlx-rs: unofficial rust wrapper for Apple's mlx machine learning library."
 readme = "README.md"
 
 [package.metadata.docs.rs]
