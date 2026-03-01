@@ -121,10 +121,26 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::
 }
 
 fn build_and_link_mlx_c() {
+    // MLX requires macOS >= 14.0 for Metal support. Override the deployment
+    // target early so the cmake crate (and cc crate) don't inject a lower
+    // -mmacosx-version-min flag into CFLAGS/CXXFLAGS. Without this, Cargo's
+    // default target (10.13) causes MLX's CMakeLists.txt to reject the build.
+    #[cfg(target_os = "macos")]
+    {
+        let target = resolve_deployment_target();
+        env::set_var("MACOSX_DEPLOYMENT_TARGET", &target);
+    }
+
     let mlx_c_src = prepare_mlx_c_source();
     let mut config = Config::new(&mlx_c_src);
     config.very_verbose(true);
     config.define("CMAKE_INSTALL_PREFIX", ".");
+
+    #[cfg(target_os = "macos")]
+    {
+        let target = resolve_deployment_target();
+        config.define("CMAKE_OSX_DEPLOYMENT_TARGET", &target);
+    }
 
     // Use Xcode's clang to ensure compatibility with the macOS SDK
     config.define("CMAKE_C_COMPILER", "/usr/bin/cc");

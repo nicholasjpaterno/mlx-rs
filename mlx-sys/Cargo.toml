@@ -1,6 +1,6 @@
 [package]
 name = "pmetal-mlx-sys"
-version = "0.2.2" # mlx-sys version should follow that of mlx-c
+version = "0.2.3" # mlx-sys version should follow that of mlx-c
 authors.workspace = true
 edition.workspace = true
 
