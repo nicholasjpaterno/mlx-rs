@@ -46,11 +46,22 @@ fn find_clang_rt_path() -> Option<String> {
 
 /// Resolve the macOS deployment target.
 ///
-/// Uses `MACOSX_DEPLOYMENT_TARGET` env var if set, otherwise defaults to 14.0
-/// (MLX's minimum supported version for Metal).
+/// Enforces a minimum of 14.0 (MLX's requirement for Metal support).
+/// If `MACOSX_DEPLOYMENT_TARGET` is set to a higher value, that is used instead.
+/// Cargo/Tauri often default to 10.13, which MLX's CMakeLists.txt rejects.
 #[cfg(target_os = "macos")]
 fn resolve_deployment_target() -> String {
-    env::var("MACOSX_DEPLOYMENT_TARGET").unwrap_or_else(|_| "14.0".to_string())
+    const MLX_MIN_MACOS: (u32, u32) = (14, 0);
+
+    if let Ok(val) = env::var("MACOSX_DEPLOYMENT_TARGET") {
+        let parts: Vec<u32> = val.split('.').filter_map(|s| s.parse().ok()).collect();
+        let major = parts.first().copied().unwrap_or(0);
+        let minor = parts.get(1).copied().unwrap_or(0);
+        if (major, minor) >= MLX_MIN_MACOS {
+            return val;
+        }
+    }
+    format!("{}.{}", MLX_MIN_MACOS.0, MLX_MIN_MACOS.1)
 }
 
 /// Copy src/mlx-c to a staging directory and inject the metallib search-path

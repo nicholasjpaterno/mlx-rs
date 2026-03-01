@@ -32,10 +32,10 @@ resolver = "2"
 
 [workspace.dependencies]
 # workspace local dependencies
-mlx-sys = { version = "=0.2.3", path = "mlx-sys", package = "pmetal-mlx-sys" }
+mlx-sys = { version = "=0.2.4", path = "mlx-sys", package = "pmetal-mlx-sys" }
 mlx-macros = { version = "0.25", path = "mlx-macros" }
 mlx-internal-macros = { version = "0.25", path = "mlx-internal-macros" }
-mlx-rs = { version = "0.25.6", path = "mlx-rs", package = "pmetal-mlx-rs" }
+mlx-rs = { version = "0.25.7", path = "mlx-rs", package = "pmetal-mlx-rs" }
 mlx-lm = { version = "0.0.1", path = "mlx-lm" }
 mlx-lm-utils = { version = "0.0.1", path = "mlx-lm-utils" }
 

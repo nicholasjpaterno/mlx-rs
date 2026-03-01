@@ -1,6 +1,6 @@
 [package]
 name = "pmetal-mlx-rs"
-version = "0.25.6"
+version = "0.25.7"
 authors.workspace = true
 edition.workspace = true
 repository = "https://github.com/oxiglade/mlx-rs"
